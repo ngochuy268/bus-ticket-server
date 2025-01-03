@@ -5,7 +5,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:3000'], 
+    origin: ['http://localhost:3000', 'https://bus-ticket-client.vercel.app'], 
     methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'], 
     allowedHeaders: 'Content-Type, Authorization',
 }));
