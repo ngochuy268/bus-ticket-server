@@ -18,10 +18,9 @@ const bookingController = {
     },
 
     getBookingsByPhone: async (req, res) => {
-        const { phone } = req.params;
-
+        const { phone, email } = req.query;
         try {
-            const bookings = await bookingModel.getBookingsByPhone(phone);
+            const bookings = await bookingModel.getBookingsByPhone(phone, email);
             if (bookings.length === 0) {
                 res.status(404).json({ message: 'No bookings found for this phone number!' });
             } else {
