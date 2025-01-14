@@ -26,22 +26,30 @@ const bookingModel = {
             if (busRows.length === 0) {
                 throw new Error('Bus not found!');
             }
-
             const bus = busRows[0];
             if (bus.seat < guests) {
                 throw new Error('Not enough seats available!');
             }
 
-            await dbConnection.query(
+            const [bookResult] = await dbConnection.query(
                 `INSERT INTO book 
                 (departdate, returndate, bookdepart, bookdest, 
                 bookimg, bookcost, bookbusname, bookbustype, bookrate, 
-                bookguest, bookphone, bookname, bookemail, bookdeparttime, bookarrivaltime, busid, code) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                bookguest, bookphone, bookemail, bookdeparttime, bookarrivaltime, busid, code) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [departureDate, returnDate, departure, destination, 
                 image, cost, busname, type, rate, guests, 
-                phone, name, email, departtime, arrivaltime, busid, confirmCode]
+                phone, email, departtime, arrivaltime, busid, confirmCode]
             );
+
+            const bookid = bookResult.insertId;
+            if (name && name.length > 0) {
+                const nameInserts = name.map((n) => [bookid, n]);
+                await dbConnection.query(
+                    'INSERT INTO book_names (bookid, name) VALUES ?',
+                    [nameInserts]
+                );
+            }
 
             const newSeatCount = bus.seat - guests;
             await dbConnection.query(
@@ -84,11 +92,15 @@ const bookingModel = {
 
     getBookingsByPhone: async (phone, email) => {
         const sql = `
-            SELECT *, 
-            DATE_FORMAT(departdate, '%Y-%m-%d') AS departdate, 
-            DATE_FORMAT(returndate, '%Y-%m-%d') AS returndate
-            FROM book 
-            WHERE bookphone = ? AND code = ?
+             SELECT 
+                b.*, 
+                GROUP_CONCAT(bn.name SEPARATOR ', ') AS names, 
+                DATE_FORMAT(b.departdate, '%Y-%m-%d') AS departdate, 
+                DATE_FORMAT(b.returndate, '%Y-%m-%d') AS returndate
+            FROM book b
+            LEFT JOIN book_names bn ON b.bookid = bn.bookid  
+            WHERE b.bookphone = ? AND b.code = ?
+            GROUP BY b.bookid 
         `;
         const [result] = await connection.promise().query(sql, [phone, email]);
         return result;
@@ -106,6 +118,8 @@ const bookingModel = {
             }
 
             const { bookguest, busid } = bookingRows[0];
+            
+            await dbConnection.query('DELETE FROM book_names WHERE bookid = ?', [bookid]);
 
             await dbConnection.query('DELETE FROM book WHERE bookid = ?', [bookid]);
 
