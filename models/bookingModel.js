@@ -60,7 +60,7 @@ const bookingModel = {
             await dbConnection.commit();
 
             const mailOptions = {
-                from: '"PopVibes Booking" <popvibes.net@gmail.com>',
+                from: '"Woox Booking" <popvibes.net@gmail.com>',
                 to: email,
                 subject: '予約確認書',
                 html: `
@@ -69,8 +69,10 @@ const bookingModel = {
                     <p>今後の参照用にこの ID を保管しておいてください。</p>
                     <p>詳細:</p>
                     <ul>
-                        <li>出発: ${departure} (${departureDate})</li>
-                        <li>行き先: ${destination} (${returnDate})</li>
+                        <li>出発: ${departure}</li>
+                        <li>行き先: ${destination}</li>
+                        <li>出発日: ${departureDate}</li>
+                        ${returnDate ? `<li>帰国日: ${returnDate}</li>` : ''}
                         <li>バス: ${busname} (${type})</li>
                         <li>料金: ${cost}￥</li>
                         <li>ゲスト: ${guests}</li>
