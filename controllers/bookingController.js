@@ -4,7 +4,7 @@ const bookingController = {
     createBooking: async (req, res) => {
         const bookingData = req.body;
 
-        if (!bookingData.departureDate || !bookingData.returnDate || !bookingData.departure || !bookingData.destination || !bookingData.guests || !bookingData.name || !bookingData.phone) {
+        if (!bookingData.departureDate || !bookingData.departure || !bookingData.destination || !bookingData.guests || !bookingData.name || !bookingData.phone) {
             return res.status(400).json({ message: 'All fields are required!' });
         }
 
