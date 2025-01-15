@@ -76,6 +76,7 @@ const bookingModel = {
                         <li>バス: ${busname} (${type})</li>
                         <li>料金: ${cost}￥</li>
                         <li>ゲスト: ${guests}</li>
+                        <li>名前: <ul>${name.map(n => `<li>${n}</li>`).join('')}</ul></li>
                     </ul>
                 `,
             };
