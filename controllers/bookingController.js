@@ -34,13 +34,13 @@ const bookingController = {
 
     deleteBooking: async (req, res) => {
         const { bookid } = req.params;
-
+        const { phone } = req.body;
         try {
-            await bookingModel.deleteBooking(bookid);
+            await bookingModel.deleteBooking(bookid, phone);
             res.status(200).json({ message: 'Booking deleted successfully!' });
         } catch (err) {
             console.error('Error deleting booking:', err);
-            res.status(500).json({ message: 'Internal server error!' });
+            res.status(500).json({ message: 'この予約を削除する権利がありません。' });
         }
     }
 };

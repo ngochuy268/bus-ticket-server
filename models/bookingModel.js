@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 const bookingModel = {
     createBooking: async (bookingData) => {
         const { 
-            name, phone, email, guests, departureDate, returnDate, departure, destination, selectedBus, confirmCode
+            name, phone, email, guests, gender, departureDate, returnDate, departure, destination, selectedBus, confirmCode, receiveCode
         } = bookingData;
 
         const { busid, busname, rate, type, departtime, arrivaltime, cost, image } = selectedBus;
@@ -35,19 +35,29 @@ const bookingModel = {
                 `INSERT INTO book 
                 (departdate, returndate, bookdepart, bookdest, 
                 bookimg, bookcost, bookbusname, bookbustype, bookrate, 
-                bookguest, bookphone, bookemail, bookdeparttime, bookarrivaltime, busid, code) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                bookguest, bookdeparttime, bookarrivaltime, busid, code) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [departureDate, returnDate, departure, destination, 
-                image, cost, busname, type, rate, guests, 
-                phone, email, departtime, arrivaltime, busid, confirmCode]
+                image, cost, busname, type, rate, guests,
+                departtime, arrivaltime, busid, confirmCode]
             );
 
             const bookid = bookResult.insertId;
             if (name && name.length > 0) {
-                const nameInserts = name.map((n) => [bookid, n]);
+                const guestInserts = name.map((n, index) => [
+                    bookid, 
+                    n, 
+                    phone[index] || '', 
+                    email[index] || '',
+                    gender[index] || '', 
+                    receiveCode[index] || 0 
+                ]);
+    
                 await dbConnection.query(
-                    'INSERT INTO book_names (bookid, name) VALUES ?',
-                    [nameInserts]
+                    `INSERT INTO book_names 
+                    (bookid, name, phone, email, gender, receivecode) 
+                    VALUES ?`,
+                    [guestInserts]
                 );
             }
 
@@ -58,15 +68,22 @@ const bookingModel = {
             );
 
             await dbConnection.commit();
-
-            const mailOptions = {
-                from: '"Woox Booking" <popvibes.net@gmail.com>',
-                to: email,
-                subject: '予約確認書',
-                html: `
+            for (let i = 0; i < email.length; i++) {
+                const recipientEmail = email[i];
+                const recipientReceiveCode = receiveCode[i];
+            
+                    let htmlContent = `
                     <h2>ご予約ありがとうございます！</h2>
-                    <p>あなたの予約IDは: <strong>${confirmCode}</strong></p>
-                    <p>今後の参照用にこの ID を保管しておいてください。</p>
+                `;
+
+                if (recipientReceiveCode === 1) {
+                    htmlContent += `
+                        <p>あなたの予約IDは: <strong>${confirmCode}</strong></p>
+                        <p>今後の参照用にこの ID を保管しておいてください。</p>
+                    `;
+                }
+
+                htmlContent += `
                     <p>詳細:</p>
                     <ul>
                         <li>出発: ${departure}</li>
@@ -78,10 +95,17 @@ const bookingModel = {
                         <li>ゲスト: ${guests}</li>
                         <li>名前: <ul>${name.map(n => `<li>${n}</li>`).join('')}</ul></li>
                     </ul>
-                `,
-            };
-
-            await transporter.sendMail(mailOptions);
+                `;
+            
+                const mailOptions = {
+                    from: '"Woox Booking" <popvibes.net@gmail.com>',
+                    to: recipientEmail,
+                    subject: '予約確認書',
+                    html: htmlContent,
+                };
+            
+                await transporter.sendMail(mailOptions);
+            }
 
         return { message: 'Booking successful and email sent!' };
 
@@ -95,21 +119,27 @@ const bookingModel = {
 
     getBookingsByPhone: async (phone, email) => {
         const sql = `
-             SELECT 
+            SELECT 
                 b.*, 
                 GROUP_CONCAT(bn.name SEPARATOR ', ') AS names, 
+                GROUP_CONCAT(bn.phone SEPARATOR ', ') AS phones, 
+                GROUP_CONCAT(bn.email SEPARATOR ', ') AS emails, 
+                GROUP_CONCAT(bn.gender SEPARATOR ', ') AS genders, 
                 DATE_FORMAT(b.departdate, '%Y-%m-%d') AS departdate, 
                 DATE_FORMAT(b.returndate, '%Y-%m-%d') AS returndate
             FROM book b
-            LEFT JOIN book_names bn ON b.bookid = bn.bookid  
-            WHERE b.bookphone = ? AND b.code = ?
-            GROUP BY b.bookid 
+            LEFT JOIN book_names bn ON b.bookid = bn.bookid
+            WHERE b.code = ? 
+            AND b.bookid IN (
+                SELECT bookid FROM book_names WHERE phone = ?
+            )
+            GROUP BY b.bookid;
         `;
-        const [result] = await connection.promise().query(sql, [phone, email]);
+        const [result] = await connection.promise().query(sql, [email, phone]);
         return result;
     },
 
-    deleteBooking: async (bookid) => {
+    deleteBooking: async (bookid, phone) => {
         const dbConnection = await connection.promise().getConnection();
 
         try {
@@ -118,6 +148,19 @@ const bookingModel = {
             const [bookingRows] = await dbConnection.query('SELECT bookguest, busid FROM book WHERE bookid = ?', [bookid]);
             if (bookingRows.length === 0) {
                 throw new Error('Booking not found!');
+            }
+
+            const [guestRows] = await dbConnection.query(
+                'SELECT phone FROM book_names WHERE bookid = ? AND receivecode = 1',
+                [bookid]
+            );
+            if (guestRows.length === 0) {
+                throw new Error('No guest with receiveCode = 1 found!');
+            }
+
+            const guestPhone = guestRows[0].phone;
+            if (guestPhone !== phone) {
+                throw new Error('Phone does not match the guest with receiveCode = 1!');
             }
 
             const { bookguest, busid } = bookingRows[0];
