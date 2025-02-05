@@ -42,6 +42,22 @@ const bookingController = {
             console.error('Error deleting booking:', err);
             res.status(500).json({ message: 'この予約を削除する権利がありません。' });
         }
+    },
+
+    updateBooking: async (req, res) => {
+        const { bookid } = req.params;
+        const { passengers, commonInfo } = req.body;
+        if (!passengers || !commonInfo) {
+            return res.status(400).json({ message: 'All fields are required!' });
+        }
+    
+        try {
+            await bookingModel.updateBooking(bookid, passengers, commonInfo);
+            res.status(200).json({ message: 'Booking updated successfully!' });
+        } catch (err) {
+            console.error('Error updating booking:', err);
+            res.status(500).json({ message: 'この予約を更新する権利がありません。' });
+        }
     }
 };
 

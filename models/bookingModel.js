@@ -122,6 +122,7 @@ const bookingModel = {
             SELECT 
                 b.*, 
                 GROUP_CONCAT(bn.name SEPARATOR ', ') AS names, 
+                GROUP_CONCAT(bn.nameid SEPARATOR ', ') AS nameids, 
                 GROUP_CONCAT(bn.phone SEPARATOR ', ') AS phones, 
                 GROUP_CONCAT(bn.email SEPARATOR ', ') AS emails, 
                 GROUP_CONCAT(bn.gender SEPARATOR ', ') AS genders, 
@@ -183,6 +184,57 @@ const bookingModel = {
             dbConnection.release();
         }
     },
+
+    updateBooking: async (bookid, passengers, commonInfo) => {
+        const { bookdeparttime, bookarrivaltime } = commonInfo;
+        
+        // Bắt đầu transaction
+        const dbConnection = await connection.promise().getConnection();
+        try {
+            await dbConnection.beginTransaction();
+    
+            // Cập nhật bảng `book`
+            const updateBookQuery = `
+                UPDATE book
+                SET bookdeparttime = ?, bookarrivaltime = ?
+                WHERE bookid = ?
+            `;
+            const bookValues = [bookdeparttime, bookarrivaltime, bookid];
+            const [bookResult] = await dbConnection.execute(updateBookQuery, bookValues);
+    
+            if (bookResult.affectedRows === 0) {
+                throw new Error('Booking not found in book table.');
+            }
+    
+            // Cập nhật bảng `book_names` cho từng hành khách
+            for (const passenger of passengers) {
+                const { nameid, name, gender, phone, email } = passenger;
+    
+                const updateBookNamesQuery = `
+                    UPDATE book_names
+                    SET name = ?, phone = ?, email = ?, gender = ?
+                    WHERE bookid = ? AND nameid = ?
+                `;
+                const bookNamesValues = [name, phone, email, gender, bookid, nameid];
+                const [bookNamesResult] = await dbConnection.execute(updateBookNamesQuery, bookNamesValues);
+    
+                if (bookNamesResult.affectedRows === 0) {
+                    throw new Error(`Passenger with nameid ${nameid} not found in book_names table.`);
+                }
+            }
+    
+            // Commit transaction nếu cả hai cập nhật thành công
+            await dbConnection.commit();
+            return { bookResult };
+        } catch (error) {
+            // Rollback transaction nếu có lỗi
+            await dbConnection.rollback();
+            throw error;
+        } finally {
+            // Giải phóng kết nối
+            dbConnection.release();
+        }
+    }
 };
 
 module.exports = bookingModel;
